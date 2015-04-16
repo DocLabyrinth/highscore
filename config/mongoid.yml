@@ -1,0 +1,12 @@
+test:
+  sessions:
+    default:
+      database: highscores_testing
+      hosts:
+        - localhost:27017
+development:
+  sessions:
+    default:
+      database: highscores
+      hosts:
+        - localhost:27017

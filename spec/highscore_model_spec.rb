@@ -1,0 +1,75 @@
+require 'models/score'
+
+describe HighScore::Models::Score do
+  it do
+    is_expected.to validate_presence_of(:player_id)
+    is_expected.to validate_presence_of(:game_id)
+    is_expected.to validate_presence_of(:score)
+    is_expected.to validate_numericality_of(:score)
+  end
+
+  describe "class methods" do
+    describe "personal board key" do
+      it "creates a daily key" do
+        created_at = DateTime.new(2001,2,3,4,5,6)
+        score = HighScore::Models::Score.personal_board_key('a_player', 'a_game', created_at, 'daily')
+        expect( score ).to eq("scoreboard:daily:2001-2-3:a_game:a_player")
+      end
+
+      it "creates a weekly key" do
+        created_at = DateTime.new(2001,2,3,4,5,6)
+        score = HighScore::Models::Score.personal_board_key('a_player', 'a_game', created_at, 'weekly')
+        expect( score ).to eq("scoreboard:weekly:2001-05:a_game:a_player")
+      end
+      
+      it "creates a monthly key" do
+        created_at = DateTime.new(2001,2,3,4,5,6)
+        score = HighScore::Models::Score.personal_board_key('a_player', 'a_game', created_at, 'monthly')
+        expect( score ).to eq("scoreboard:monthly:2001-2:a_game:a_player")
+      end
+    end
+
+    describe "game board key" do
+      it "creates a daily key" do
+        created_at = DateTime.new(2001,2,3,4,5,6)
+        score = HighScore::Models::Score.game_board_key('a_game', created_at, 'daily')
+        expect( score ).to eq("scoreboard:daily:2001-2-3:a_game")
+      end
+
+      it "creates a weekly key" do
+        created_at = DateTime.new(2001,2,3,4,5,6)
+        score = HighScore::Models::Score.game_board_key('a_game', created_at, 'weekly')
+        expect( score ).to eq("scoreboard:weekly:2001-05:a_game")
+      end
+      
+      it "creates a monthly key" do
+        created_at = DateTime.new(2001,2,3,4,5,6)
+        score = HighScore::Models::Score.game_board_key('a_game', created_at, 'monthly')
+        expect( score ).to eq("scoreboard:monthly:2001-2:a_game")
+      end
+    end
+  end
+
+  describe "after save" do
+    describe "personal scoreboard" do
+      it "inserts the score in redis and caps the number of recorded scores" do
+        #redis = mock()
+        #redis.()
+        #stub(HighScore::Wrapper).redis { redis }
+        #make_score.save
+      end
+    end
+
+    it "updates the game's scoreboards" do
+    end
+  end
+
+  def make_score(opts = {})
+    opts = {
+      :player_id => 'some_player',
+      :game_id => 'some_game',
+    }.merge(opts)
+
+    HighScore::Models::Score.new(opts)
+  end
+end
