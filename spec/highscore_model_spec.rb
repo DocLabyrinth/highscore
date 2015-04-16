@@ -53,10 +53,27 @@ describe HighScore::Models::Score do
   describe "after save" do
     describe "personal scoreboard" do
       it "inserts the score in redis and caps the number of recorded scores" do
-        #redis = mock()
-        #redis.()
-        #stub(HighScore::Wrapper).redis { redis }
-        #make_score.save
+        score = make_score
+
+        created_at = Time.now
+        RR.stub(score).created_at { created_at }
+
+        daily_key = HighScore::Models::Score.personal_board_key(score.player_id, score.game_id, score.created_at, 'daily')
+        weekly_key = HighScore::Models::Score.personal_board_key(score.player_id, score.game_id, score.created_at, 'weekly')
+        monthly_key = HighScore::Models::Score.personal_board_key(score.player_id, score.game_id, score.created_at, 'monthly')
+
+        redis = HighScore::Wrapper.redis
+
+        RR.mock(redis).zadd(daily_key, score.score, score.player_id)
+        RR.mock(redis).zremrangbyrank(daily_key, 0, -Global.leaderboard.personal_limit)
+        RR.mock(redis).zadd(weekly_key, score.score, score.player_id)
+        RR.mock(redis).zremrangbyrank(weekly_key, 0, -Global.leaderboard.personal_limit)
+        RR.mock(redis).zadd(monthly_key, score.score, score.player_id)
+        RR.mock(redis).zremrangbyrank(monthly_key, 0, -Global.leaderboard.personal_limit)
+        
+        RR.stub( HighScore::Wrapper ).redis.returns(redis)
+
+        make_score.save
       end
     end
 
@@ -68,6 +85,7 @@ describe HighScore::Models::Score do
     opts = {
       :player_id => 'some_player',
       :game_id => 'some_game',
+      :score => 5000,
     }.merge(opts)
 
     HighScore::Models::Score.new(opts)

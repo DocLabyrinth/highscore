@@ -17,6 +17,25 @@ module HighScore
 
       validates_numericality_of :score, greater_than_or_equal_to: 0
 
+      after_save do |document|
+        # update personal leaderboards
+        daily_key = Score.personal_board_key(document.player_id, document.game_id, document.created_at, 'daily')
+        weekly_key = Score.personal_board_key(document.player_id, document.game_id, document.created_at, 'weekly')
+        monthly_key = Score.personal_board_key(document.player_id, document.game_id, document.created_at, 'monthly')
+
+        redis = HighScore::Wrapper.redis
+        results = redis.multi do
+          redis.zadd(daily_key, document.score, document.player_id)
+          redis.zremrangbyrank(daily_key, 0, -Global.leaderboard.personal_limit)
+          redis.zadd(weekly_key, document.score, document.player_id)
+          redis.zremrangbyrank(weekly_key, 0, -Global.leaderboard.personal_limit)
+          redis.zadd(monthly_key, document.score, document.player_id)
+          redis.zremrangbyrank(monthly_key, 0, -Global.leaderboard.personal_limit)
+        end
+
+        # update game leaderboards
+      end
+
       def self.game_board_key(game_id, created_at, type = 'daily')
         type = 'daily' unless ['daily', 'weekly', 'monthly'].include?(type)
 
