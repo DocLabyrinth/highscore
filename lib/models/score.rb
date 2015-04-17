@@ -33,11 +33,11 @@ module HighScore
           size_limit = Global.leaderboard.personal_limit
           results = redis.multi do
             redis.zadd(keys[:daily], self.score, self.created_at)
-            redis.zremrangbyrank(keys[:daily], 0, -size_limit)
+            redis.zremrangebyrank(keys[:daily], 0, -size_limit)
             redis.zadd(keys[:weekly], self.score, self.created_at)
-            redis.zremrangbyrank(keys[:weekly], 0, -size_limit)
+            redis.zremrangebyrank(keys[:weekly], 0, -size_limit)
             redis.zadd(keys[:monthly], self.score, self.created_at)
-            redis.zremrangbyrank(keys[:monthly], 0, -size_limit)
+            redis.zremrangebyrank(keys[:monthly], 0, -size_limit)
           end
         else
           # sorted sets still track unique values, so combine
