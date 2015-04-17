@@ -85,6 +85,28 @@ describe HighScore::API do
       end
     end
 
+    describe "uncaught exceptions" do
+      it "returns a response with a backtrace in development mode" do
+        stub(HighScore::Models::Score).create! { raise RuntimeError.new('no') }
+        stub(Global).environment { :development }
+        post "/score", make_request
+        body = JSON.parse(last_response.body)
+        expect( last_response.status ).to eq(500)
+        expect( body['error'] ).to eq("RuntimeError - no")
+        expect( body['backtrace'].length ).to be > 1
+      end
+
+      it "returns nothing except the status in production mode" do
+        stub(HighScore::Models::Score).create! { raise RuntimeError.new('no') }
+        stub(Global).environment { :production }
+        post "/score", make_request
+        body = JSON.parse(last_response.body)
+        expect( last_response.status ).to eq(500)
+        expect( body['error'] ).to eq("Internal Error")
+        expect( body['backtrace'] ).to be_nil
+      end
+    end
+
     def make_request(opts = {})
       {
         :game_id => 'some_game',

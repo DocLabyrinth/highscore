@@ -5,7 +5,7 @@ module HighScore
     format :json
 
     rescue_from Mongoid::Errors::Validations do |e|
-      Rack::Response.new([ e.document.errors.messages.to_json ], 400).finish
+      rack_response(e.document.errors.messages.to_json, 400)
     end
 
     rescue_from Grape::Exceptions::ValidationErrors do |e|
@@ -14,8 +14,17 @@ module HighScore
         obj[error[:params].first] = error[:messages]
         obj
       end
+      rack_response(response.to_json, 400)
+    end
 
-      Rack::Response.new(response.to_json, 400).finish
+    rescue_from :all, backtrace: true do |e|
+      if Global.environment == :production
+        message = { "error" => "Internal Error" }
+        rack_response(message.to_json, 500 )
+      else
+        message = { "error" => "#{e.class} - #{e.message}" }
+        rack_response(format_message(message, e.backtrace), 500 )
+      end
     end
 
     resource :score do
