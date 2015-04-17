@@ -23,7 +23,12 @@ describe HighScore::Models::Score do
         created_at = Time.now
         score = make_score(:created_at => created_at)
 
-        keys = score.leaderboard_keys('personal')
+        keys = HighScore::Models::Score.leaderboard_keys({
+          :player_id => score.player_id,
+          :game_id => score.game_id,
+          :type => 'personal',
+          :ref_time => score.created_at,
+        })
 
         redis = HighScore::Wrapper.redis
         stub( HighScore::Wrapper ).redis.returns(redis)
@@ -45,7 +50,12 @@ describe HighScore::Models::Score do
         created_at = Time.now
         score = make_score(:created_at => created_at)
 
-        keys = score.leaderboard_keys('game')
+        keys = HighScore::Models::Score.leaderboard_keys({
+          :player_id => score.player_id,
+          :game_id => score.game_id,
+          :type => 'game',
+          :ref_time => score.created_at,
+        })
 
         redis = HighScore::Wrapper.redis
         stub( HighScore::Wrapper ).redis.returns(redis)
@@ -61,12 +71,34 @@ describe HighScore::Models::Score do
     end
   end
 
-  describe "#leaderboard_keys" do
+  describe "Score.leaderboard_keys" do
     describe "generates leaderboard keys for the current player" do
       it "generates daily, weekly and monthly keys" do
         score = make_score
         score.created_at = DateTime.new(2001,2,3,4,5,6)
-        keys = score.leaderboard_keys('personal')
+        keys = HighScore::Models::Score.leaderboard_keys({
+          :player_id => score.player_id,
+          :game_id => score.game_id,
+          :type => 'personal',
+          :ref_time => score.created_at,
+        })
+
+        expect( keys[:daily] ).to eq("scoreboard:daily:2001-2-3:some_game:some_player")
+        expect( keys[:weekly] ).to eq("scoreboard:weekly:2001-05:some_game:some_player")
+        expect( keys[:monthly] ).to eq("scoreboard:monthly:2001-2:some_game:some_player")
+      end
+
+      it "generates keys for the current time if :ref_time is not given" do
+        score = make_score
+        score.created_at = DateTime.new(2001,2,3,4,5,6)
+
+        stub(Time).now { score.created_at }
+
+        keys = HighScore::Models::Score.leaderboard_keys({
+          :player_id => score.player_id,
+          :game_id => score.game_id,
+          :type => 'personal',
+        })
 
         expect( keys[:daily] ).to eq("scoreboard:daily:2001-2-3:some_game:some_player")
         expect( keys[:weekly] ).to eq("scoreboard:weekly:2001-05:some_game:some_player")
@@ -76,22 +108,25 @@ describe HighScore::Models::Score do
       it "fails if the game_id is not present" do
         score = make_score(:game_id => nil)
         expect do
-          score.leaderboard_keys('personal')
+          HighScore::Models::Score.leaderboard_keys({
+            :player_id => score.player_id,
+            :game_id => score.game_id,
+            :type => 'personal',
+            :ref_time => score.created_at,
+          })
         end.to raise_error(KeyError, "game_id is required to generate leaderboard keys")
       end
 
       it "fails if the player_id is not present" do
         score = make_score(:player_id => nil)
         expect do
-          score.leaderboard_keys('personal')
+          HighScore::Models::Score.leaderboard_keys({
+            :player_id => score.player_id,
+            :game_id => score.game_id,
+            :type => 'personal',
+            :ref_time => score.created_at,
+          })
         end.to raise_error(KeyError, "player_id is required to generate leaderboard keys")
-      end
-
-      it "fails if there is no created_at time recorded" do
-        score = make_score
-        expect do
-          score.leaderboard_keys('personal')
-        end.to raise_error(KeyError, "created_at is required to generate leaderboard keys")
       end
     end
 
@@ -99,7 +134,30 @@ describe HighScore::Models::Score do
       it "generates daily, weekly and monthly keys" do
         score = make_score
         score.created_at = DateTime.new(2001,2,3,4,5,6)
-        keys = score.leaderboard_keys('game')
+        keys = HighScore::Models::Score.leaderboard_keys({
+          :player_id => score.player_id,
+          :game_id => score.game_id,
+          :type => 'game',
+          :ref_time => score.created_at,
+        })
+
+        expect( keys[:daily] ).to eq("scoreboard:daily:2001-2-3:some_game")
+        expect( keys[:weekly] ).to eq("scoreboard:weekly:2001-05:some_game")
+        expect( keys[:monthly] ).to eq("scoreboard:monthly:2001-2:some_game")
+      end
+
+      it "generates keys for the current time if :ref_time is not given" do
+        score = make_score
+        score.created_at = DateTime.new(2001,2,3,4,5,6)
+
+        stub(Time).now { score.created_at }
+
+        keys = HighScore::Models::Score.leaderboard_keys({
+          :player_id => score.player_id,
+          :game_id => score.game_id,
+          :type => 'game',
+          :ref_time => score.created_at,
+        })
 
         expect( keys[:daily] ).to eq("scoreboard:daily:2001-2-3:some_game")
         expect( keys[:weekly] ).to eq("scoreboard:weekly:2001-05:some_game")
@@ -109,22 +167,25 @@ describe HighScore::Models::Score do
       it "fails if the game_id is not present" do
         score = make_score(:game_id => nil)
         expect do
-          score.leaderboard_keys('game')
+          HighScore::Models::Score.leaderboard_keys({
+            :player_id => score.player_id,
+            :game_id => score.game_id,
+            :type => 'game',
+            :ref_time => score.created_at,
+          })
         end.to raise_error(KeyError, "game_id is required to generate leaderboard keys")
       end
 
       it "fails if the player_id is not present" do
         score = make_score(:player_id => nil)
         expect do
-          score.leaderboard_keys('game')
+          HighScore::Models::Score.leaderboard_keys({
+            :player_id => score.player_id,
+            :game_id => score.game_id,
+            :type => 'game',
+            :ref_time => score.created_at,
+          })
         end.to raise_error(KeyError, "player_id is required to generate leaderboard keys")
-      end
-
-      it "fails if there is no created_at time recorded" do
-        score = make_score
-        expect do
-          score.leaderboard_keys('game')
-        end.to raise_error(KeyError, "created_at is required to generate leaderboard keys")
       end
     end
   end

@@ -115,4 +115,9 @@ describe HighScore::API do
       }.merge(opts)
     end
   end
+
+  describe "GET /table" do
+    describe "GET /table/:period/:game_id" do
+    end
+  end
 end

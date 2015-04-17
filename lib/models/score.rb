@@ -22,8 +22,62 @@ module HighScore
         self.update_leaderboards('game')
       end
 
+      def self.leaderboard_keys(options = {})
+        [:player_id, :game_id, :type].each do |key|
+          raise KeyError.new("#{key} is required to generate leaderboard keys") unless options.fetch(key)
+        end
+
+        ref_time = options.fetch(:ref_time, Time.now)
+        week_in_year = ref_time.strftime('%W')
+
+        game_keys = {
+          :daily => [
+            "scoreboard:daily",
+            [
+              ref_time.year,
+              ref_time.month,
+              ref_time.day,
+            ].join('-'),
+            options[:game_id],
+          ].join(':'),
+
+          :weekly => [
+            "scoreboard:weekly",
+            [
+              ref_time.year,
+              week_in_year,
+            ].join('-'),
+            options[:game_id],
+          ].join(':'),
+
+          :monthly => [
+            "scoreboard:monthly",
+            [
+              ref_time.year,
+              ref_time.month,
+            ].join('-'),
+            options[:game_id],
+          ].join(':'),
+        }
+
+        if options[:type] == "game"
+          game_keys
+        else
+          {
+            :daily => "#{game_keys[:daily]}:#{options[:player_id]}",
+            :weekly => "#{game_keys[:weekly]}:#{options[:player_id]}",
+            :monthly => "#{game_keys[:monthly]}:#{options[:player_id]}",
+          }
+        end
+      end
+
       def update_leaderboards(type = 'personal')
-        keys = self.leaderboard_keys(type)
+        keys = Score.leaderboard_keys({
+          :player_id => self.player_id,
+          :game_id => self.game_id,
+          :type => type,
+          :ref_time => self.created_at,
+        })
         redis = HighScore::Wrapper.redis
 
         if type == 'personal'
@@ -50,52 +104,6 @@ module HighScore
             redis.zadd(keys[:weekly], self.score, add_value)
             redis.zadd(keys[:monthly], self.score, add_value)
           end
-        end
-      end
-
-      def leaderboard_keys(type = 'personal')
-        ['player_id', 'game_id', 'created_at'].each do |key|
-          raise KeyError.new("#{key} is required to generate leaderboard keys") unless self.send(key)
-        end
-        week_in_year = self.created_at.strftime('%W')
-
-        if type == "game"
-          {
-            :daily => [
-              "scoreboard:daily",
-              [
-                created_at.year,
-                created_at.month,
-                created_at.day,
-              ].join('-'),
-              self.game_id,
-            ].join(':'),
-
-            :weekly => [
-              "scoreboard:weekly",
-              [
-                created_at.year,
-                week_in_year,
-              ].join('-'),
-              self.game_id,
-            ].join(':'),
-
-            :monthly => [
-              "scoreboard:monthly",
-              [
-                created_at.year,
-                created_at.month,
-              ].join('-'),
-              self.game_id,
-            ].join(':'),
-          }
-        else
-          game_keys = self.leaderboard_keys('game')
-          {
-            :daily => "#{game_keys[:daily]}:#{self.player_id}",
-            :weekly => "#{game_keys[:weekly]}:#{self.player_id}",
-            :monthly => "#{game_keys[:monthly]}:#{self.player_id}",
-          }
         end
       end
     end
