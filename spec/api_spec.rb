@@ -21,6 +21,121 @@ describe HighScore::API do
 
         expect { post "/score", request }.to change{ HighScore::Models::Score.count }.by(1)
         expect( last_response.status ).to eq(201)
+
+        body = JSON.parse(last_response.body)
+        expect_date = JSON.parse(HighScore::Models::Score.first.to_json)["created_at"]
+
+          expect( body["player_id"] ).to eq(request[:player_id])
+          expect( body["game_id"] ).to eq(request[:game_id])
+          expect( body["score"] ).to eq(request[:score])
+          expect( body["created_at"] ).to eq(expect_date)
+          expect( body["personal_ranks"] ).to eq({
+            "daily" => 1,
+            "weekly" => 1,
+            "monthly" => 1,
+          })
+          expect( body["game_ranks"] ).to eq({
+            "daily" => 1,
+            "weekly" => 1,
+            "monthly" => 1,
+          })
+
+          expect( body.slice("player_id", "game_id", "score", "created_at", "personal_ranks", "game_ranks") ).to eq(body)
+      end
+
+      describe "returns the player's overall rank for each period" do
+        describe "game ranks" do
+          it "returns the rank when the player is on the leaderboard" do
+            1.upto(3) do |count|
+              HighScore::Models::Score.create!({
+                :player_id => "player_#{count}",
+                :game_id => "some_game",
+                :score => 10 + count,
+              })
+            end
+
+            post "/score", make_request({
+              :player_id => "some_player",
+              :game_id => "some_game",
+              :score => 10
+            })
+            body = JSON.parse(last_response.body)
+            ranks = body['game_ranks']
+            expect( ranks['daily'] ).to eq(4)
+            expect( ranks['weekly'] ).to eq(4)
+            expect( ranks['monthly'] ).to eq(4)
+          end
+
+          it "returns the rank when the player is outside the leaderboard" do
+            1.upto(Global.leaderboard.game_limit) do |count|
+              HighScore::Models::Score.create!({
+                :player_id => "player_#{count}",
+                :game_id => "some_game",
+                :score => 10 + count,
+              })
+            end
+
+            post "/score", make_request({
+              :player_id => "some_player",
+              :game_id => "some_game",
+              :score => 10
+            })
+            body = JSON.parse(last_response.body)
+            ranks = body['game_ranks']
+            expect( ranks['daily'] ).to eq(Global.leaderboard.game_limit + 1)
+            expect( ranks['weekly'] ).to eq(Global.leaderboard.game_limit + 1)
+            expect( ranks['monthly'] ).to eq(Global.leaderboard.game_limit + 1)
+          end
+        end
+
+        describe "personal ranks" do
+          it "returns the rank when the player is on the leaderboard" do
+            1.upto(3) do |count|
+              HighScore::Models::Score.timeless.create!({
+                :player_id => "some_player",
+                :game_id => "some_game",
+                :score => 10 + count,
+                :created_at => Time.now - (count+30).seconds
+              })
+            end
+
+            post "/score", make_request({
+              :player_id => "some_player",
+              :game_id => "some_game",
+              :score => 10
+            })
+
+            body = JSON.parse(last_response.body)
+            ranks = body['personal_ranks']
+            expect( ranks['daily'] ).to eq(4)
+            expect( ranks['weekly'] ).to eq(4)
+            expect( ranks['monthly'] ).to eq(4)
+          end
+
+          it "returns nil when the player is outside the leaderboard" do
+            1.upto(Global.leaderboard.personal_limit) do |count|
+              HighScore::Models::Score.timeless.create!({
+                :player_id => "some_player",
+                :game_id => "some_game",
+                :score => 10 + count,
+                :created_at => Time.now - (count+30).seconds
+              })
+            end
+
+            post "/score", make_request({
+              :player_id => "some_player",
+              :game_id => "some_game",
+              :score => 10
+            })
+
+            body = JSON.parse(last_response.body)
+            ranks = body['personal_ranks']
+            expect( ranks['daily'] ).to be_nil
+            expect( ranks['weekly'] ).to be_nil
+            expect( ranks['monthly'] ).to be_nil
+            body = JSON.parse(last_response.body)
+          end
+        end
       end
 
       it "rejects a request with multiple bad parameters" do

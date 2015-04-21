@@ -36,11 +36,20 @@ module HighScore
       end
 
       post do
-        HighScore::Models::Score.create!({
+        score = HighScore::Models::Score.create!({
           player_id: params[:player_id],
           game_id: params[:game_id],
           score: params[:score],
         })
+
+        {
+          :player_id => score.player_id,
+          :game_id => score.game_id,
+          :score => score.score,
+          :created_at => score.created_at,
+          :personal_ranks => score.personal_ranks || {},
+          :game_ranks => score.game_ranks || {},
+        }
       end
     end
   end

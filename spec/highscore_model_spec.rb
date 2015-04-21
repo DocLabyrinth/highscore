@@ -34,6 +34,8 @@ describe HighScore::Models::Score do
         stub( HighScore::Wrapper ).redis.returns(redis)
 
         size_limit = Global.leaderboard.personal_limit
+
+        # adding the keys
         mock.proxy(redis).zadd(keys[:daily], score.score, score.created_at)
         mock.proxy(redis).zremrangebyrank(keys[:daily], 0, -size_limit)
         mock.proxy(redis).zadd(keys[:weekly], score.score, score.created_at)
@@ -41,7 +43,16 @@ describe HighScore::Models::Score do
         mock.proxy(redis).zadd(keys[:monthly], score.score, score.created_at)
         mock.proxy(redis).zremrangebyrank(keys[:monthly], 0, -size_limit)
 
+        # retrieving the resulting ranks
+        mock.proxy(redis).zrevrank(keys[:monthly], score.created_at)
+        mock.proxy(redis).zrevrank(keys[:weekly], score.created_at)
+        mock.proxy(redis).zrevrank(keys[:daily], score.created_at)
+
         score.update_leaderboards('personal')
+
+        expect( score.personal_ranks[:daily] ).to eq(1)
+        expect( score.personal_ranks[:weekly] ).to eq(1)
+        expect( score.personal_ranks[:monthly] ).to eq(1)
       end
     end
 
@@ -62,11 +73,21 @@ describe HighScore::Models::Score do
 
         add_value = "#{score.player_id}-#{score.created_at}"
 
+        # adding the keys
         mock.proxy(redis).zadd(keys[:daily], score.score, add_value)
         mock.proxy(redis).zadd(keys[:weekly], score.score, add_value)
         mock.proxy(redis).zadd(keys[:monthly], score.score, add_value)
 
+        # retrieving the resulting ranks
+        mock.proxy(redis).zrevrank(keys[:monthly], add_value)
+        mock.proxy(redis).zrevrank(keys[:weekly], add_value)
+        mock.proxy(redis).zrevrank(keys[:daily], add_value)
+
         score.update_leaderboards('game')
+
+        expect( score.game_ranks[:daily] ).to eq(1)
+        expect( score.game_ranks[:weekly] ).to eq(1)
+        expect( score.game_ranks[:monthly] ).to eq(1)
       end
     end
   end

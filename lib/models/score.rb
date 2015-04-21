@@ -7,6 +7,8 @@ module HighScore
       include Mongoid::Document
       include Mongoid::Timestamps::Created
 
+      attr_reader :personal_ranks, :game_ranks
+
       field :player_id, type: String
       field :game_id, type: String
       field :score, type: Integer
@@ -93,6 +95,28 @@ module HighScore
             redis.zadd(keys[:monthly], self.score, self.created_at)
             redis.zremrangebyrank(keys[:monthly], 0, -size_limit)
           end
+
+          rank_results = redis.multi do
+            redis.zrevrank(keys[:daily], self.created_at)
+            redis.zrevrank(keys[:weekly], self.created_at)
+            redis.zrevrank(keys[:monthly], self.created_at)
+          end
+
+          @personal_ranks = {
+            :daily => rank_results[0],
+            :weekly => rank_results[1],
+            :monthly => rank_results[2],
+          }
+
+          # redis counts from 0 but ranks
+          # are from 1 upwards. Keep the
+          # nil values to signify when the
+          # player didn't place on their
+          # personal leaderboard this time
+          @personal_ranks.each do |k,v|
+            @personal_ranks[k] = v + 1 unless v.nil?
+          end
+
         else
           # sorted sets still track unique values, so combine
           # player_id and created_at to ensure one player can
@@ -104,6 +128,20 @@ module HighScore
             redis.zadd(keys[:weekly], self.score, add_value)
             redis.zadd(keys[:monthly], self.score, add_value)
           end
+
+          rank_results = redis.multi do
+            redis.zrevrank(keys[:daily], add_value)
+            redis.zrevrank(keys[:weekly], add_value)
+            redis.zrevrank(keys[:monthly], add_value)
+          end
+
+          # redis counts from 0 but ranks
+          # are from 1 upwards
+          @game_ranks = {
+            :daily => rank_results[0] + 1,
+            :weekly => rank_results[1] + 1,
+            :monthly => rank_results[2] + 1,
+          }
         end
       end
     end

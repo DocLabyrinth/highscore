@@ -1,4 +1,6 @@
 development:
   personal_limit: 10
+  game_limit: 10
 test:
   personal_limit: 10
+  game_limit: 10
