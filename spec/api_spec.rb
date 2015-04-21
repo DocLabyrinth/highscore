@@ -19,7 +19,7 @@ describe HighScore::API do
           :score => request[:score],
         })
 
-        post "/score", request
+        expect { post "/score", request }.to change{ HighScore::Models::Score.count }.by(1)
         expect( last_response.status ).to eq(201)
       end
 
