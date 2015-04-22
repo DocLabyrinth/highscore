@@ -18,7 +18,7 @@ RSpec.configure do |config|
     config.default_formatter = 'doc'
   end
 
-   config.before :all do
+   config.before :each do
      Mongoid.purge!
      HighScore::Wrapper.redis.flushdb
    end
