@@ -1,3 +1,5 @@
+ENV['RACK_ENV'] = 'test'
+
 require 'mongoid-rspec'
 require 'rr'
 require 'init'

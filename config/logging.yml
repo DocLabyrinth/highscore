@@ -1,0 +1,10 @@
+default:
+  path: '/dev/null'
+  to_stdout: false
+  level: 'INFO'
+  datetime_format: "%Y-%m-%d %H:%M:%S.%L"
+development:
+  to_stdout: true
+  level: 'DEBUG'
+test:
+  to_stdout: false

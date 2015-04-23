@@ -1,9 +1,14 @@
 require 'grape'
 require 'mongoid'
+require_relative 'init'
+require_relative 'logging/logger'
+require_relative 'logging/middleware'
 
 module HighScore
   class API < Grape::API
     format :json
+    logger HighScore::Logger.logger('API')
+    use HighScore::Middleware::RequestLogger, { logger: logger }
 
     rescue_from Mongoid::Errors::Validations do |e|
       rack_response(e.document.errors.messages.to_json, 400)
