@@ -1,3 +1,3 @@
-require_relative 'lib/api'
+require_relative 'lib/init'
 
-run Highscore::Api
+run HighScore::API

@@ -1,5 +1,3 @@
-require 'init'
-
 module HighScore
   module Wrapper
     def self.redis

@@ -1,4 +1,5 @@
 require 'grape'
+require 'mongoid'
 
 module HighScore
   class API < Grape::API

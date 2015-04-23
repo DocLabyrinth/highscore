@@ -1,5 +1,5 @@
-require 'global'
 require 'bundler/setup'
+require 'global'
 require 'redis'
 require 'mongoid'
 
@@ -9,3 +9,6 @@ Global.configure do |c|
 
 mongoid_yml = File.join( File.dirname(__FILE__), '..', 'config', 'mongoid.yml' )
 Mongoid.load!(mongoid_yml, Global.environment.to_sym)
+
+lib_path = File.expand_path(File.dirname(__FILE__))
+Dir["#{lib_path}/**/*.rb"].each{|f| require f}
