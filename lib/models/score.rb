@@ -25,11 +25,11 @@ module HighScore
       end
 
       def self.leaderboard_keys(options = {})
-        [:player_id, :game_id, :type].each do |key|
+        [:game_id, :type].each do |key|
           raise KeyError.new("#{key} is required to generate leaderboard keys") unless options.fetch(key)
         end
 
-        ref_time = options.fetch(:ref_time, Time.now)
+        ref_time = options[:ref_time] || Time.now
         week_in_year = ref_time.strftime('%W')
 
         game_keys = {
@@ -65,12 +65,28 @@ module HighScore
         if options[:type] == "game"
           game_keys
         else
+          unless options[:player_id]
+            raise KeyError.new("player_id is required to generate leaderboard keys")
+          end
           {
             :daily => "#{game_keys[:daily]}:#{options[:player_id]}",
             :weekly => "#{game_keys[:weekly]}:#{options[:player_id]}",
             :monthly => "#{game_keys[:monthly]}:#{options[:player_id]}",
           }
         end
+      end
+
+      def self.redis_value(score)
+        "#{score.id}-#{score.player_id}-#{score.created_at}"
+      end
+
+      def self.extract_redis_value(value)
+        bits = value.split('-')
+        {
+          :id => bits[0],
+          :player_id => bits[1],
+          :created_at => bits[2],
+        }
       end
 
       def update_leaderboards(type = 'personal')
@@ -82,66 +98,43 @@ module HighScore
         })
         redis = HighScore::Wrapper.redis
 
-        if type == 'personal'
-          # cap the personal leaderboards according to the
-          # limit from the config to avoid them growing
-          # huge for prolific players
-          size_limit = Global.leaderboard.personal_limit
-          results = redis.multi do
-            redis.zadd(keys[:daily], self.score, self.created_at)
+        # cap the personal leaderboards according to the
+        # limit from the config to avoid them growing
+        # huge for prolific players
+        results = redis.multi do
+          redis.zadd(keys[:daily], self.score, Score.redis_value(self))
+          redis.zadd(keys[:weekly], self.score, Score.redis_value(self))
+          redis.zadd(keys[:monthly], self.score, Score.redis_value(self))
+
+          if type == 'personal'
+            size_limit = Global.leaderboard.personal_limit + 1
             redis.zremrangebyrank(keys[:daily], 0, -size_limit)
-            redis.zadd(keys[:weekly], self.score, self.created_at)
             redis.zremrangebyrank(keys[:weekly], 0, -size_limit)
-            redis.zadd(keys[:monthly], self.score, self.created_at)
             redis.zremrangebyrank(keys[:monthly], 0, -size_limit)
           end
+        end
 
-          rank_results = redis.multi do
-            redis.zrevrank(keys[:daily], self.created_at)
-            redis.zrevrank(keys[:weekly], self.created_at)
-            redis.zrevrank(keys[:monthly], self.created_at)
-          end
+        rank_results = redis.multi do
+          redis.zrevrank(keys[:daily], Score.redis_value(self))
+          redis.zrevrank(keys[:weekly], Score.redis_value(self))
+          redis.zrevrank(keys[:monthly], Score.redis_value(self))
+        end
 
-          @personal_ranks = {
-            :daily => rank_results[0],
-            :weekly => rank_results[1],
-            :monthly => rank_results[2],
-          }
+        # redis counts from 0 but ranks
+        # are from 1 upwards. Keep the
+        # nil values to signify when the
+        # player didn't place on their
+        # personal leaderboard this time
+        ranks = {
+          :daily => rank_results[0].nil? ? nil : rank_results[0] + 1,
+          :weekly => rank_results[1].nil? ? nil : rank_results[1] + 1,
+          :monthly => rank_results[2].nil? ? nil : rank_results[2] + 1,
+        }
 
-          # redis counts from 0 but ranks
-          # are from 1 upwards. Keep the
-          # nil values to signify when the
-          # player didn't place on their
-          # personal leaderboard this time
-          @personal_ranks.each do |k,v|
-            @personal_ranks[k] = v + 1 unless v.nil?
-          end
-
+        if type == "personal"
+          @personal_ranks = ranks
         else
-          # sorted sets still track unique values, so combine
-          # player_id and created_at to ensure one player can
-          # hold multiple slots on the leaderboard
-          add_value = "#{self.player_id}-#{self.created_at}"
-
-          results = redis.multi do
-            redis.zadd(keys[:daily], self.score, add_value)
-            redis.zadd(keys[:weekly], self.score, add_value)
-            redis.zadd(keys[:monthly], self.score, add_value)
-          end
-
-          rank_results = redis.multi do
-            redis.zrevrank(keys[:daily], add_value)
-            redis.zrevrank(keys[:weekly], add_value)
-            redis.zrevrank(keys[:monthly], add_value)
-          end
-
-          # redis counts from 0 but ranks
-          # are from 1 upwards
-          @game_ranks = {
-            :daily => rank_results[0] + 1,
-            :weekly => rank_results[1] + 1,
-            :monthly => rank_results[2] + 1,
-          }
+          @game_ranks = ranks
         end
       end
     end

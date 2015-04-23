@@ -17,9 +17,26 @@ describe HighScore::Models::Score do
     end
   end
 
+  describe "#redis_value" do
+    it "generates a value for the redis sorted set" do
+      score = make_score
+      expect( HighScore::Models::Score.redis_value(score) ).to eq("#{score.id}-#{score.player_id}-#{score.created_at}")
+    end
+
+    it "extracts values from the redis value" do
+      score = make_score
+      redis_value = HighScore::Models::Score.redis_value(score)
+      expect( HighScore::Models::Score.extract_redis_value(redis_value) ).to eq({
+        :id => score.id.to_s,
+        :player_id => score.player_id,
+        :created_at => score.created_at,
+      })
+    end
+  end
+
   describe "#update_leaderboards" do
     describe "personal leaderboards" do
-      it "inserts the score in redis using the time as a value and caps the number of recorded scores" do
+      it "inserts the score in redis and caps the number of recorded scores" do
         created_at = Time.now
         score = make_score(:created_at => created_at)
 
@@ -33,20 +50,20 @@ describe HighScore::Models::Score do
         redis = HighScore::Wrapper.redis
         stub( HighScore::Wrapper ).redis.returns(redis)
 
-        size_limit = Global.leaderboard.personal_limit
+        size_limit = Global.leaderboard.personal_limit + 1
 
         # adding the keys
-        mock.proxy(redis).zadd(keys[:daily], score.score, score.created_at)
+        mock.proxy(redis).zadd(keys[:daily], score.score, HighScore::Models::Score.redis_value(score))
         mock.proxy(redis).zremrangebyrank(keys[:daily], 0, -size_limit)
-        mock.proxy(redis).zadd(keys[:weekly], score.score, score.created_at)
+        mock.proxy(redis).zadd(keys[:weekly], score.score, HighScore::Models::Score.redis_value(score))
         mock.proxy(redis).zremrangebyrank(keys[:weekly], 0, -size_limit)
-        mock.proxy(redis).zadd(keys[:monthly], score.score, score.created_at)
+        mock.proxy(redis).zadd(keys[:monthly], score.score, HighScore::Models::Score.redis_value(score))
         mock.proxy(redis).zremrangebyrank(keys[:monthly], 0, -size_limit)
 
         # retrieving the resulting ranks
-        mock.proxy(redis).zrevrank(keys[:monthly], score.created_at)
-        mock.proxy(redis).zrevrank(keys[:weekly], score.created_at)
-        mock.proxy(redis).zrevrank(keys[:daily], score.created_at)
+        mock.proxy(redis).zrevrank(keys[:daily], HighScore::Models::Score.redis_value(score))
+        mock.proxy(redis).zrevrank(keys[:weekly], HighScore::Models::Score.redis_value(score))
+        mock.proxy(redis).zrevrank(keys[:monthly], HighScore::Models::Score.redis_value(score))
 
         score.update_leaderboards('personal')
 
@@ -57,7 +74,7 @@ describe HighScore::Models::Score do
     end
 
     describe "game leaderboards" do
-      it "inserts the score in redis using the combined player/time as a value so one player can hold multiple ranks" do
+      it "inserts the score in redis" do
         created_at = Time.now
         score = make_score(:created_at => created_at)
 
@@ -71,17 +88,15 @@ describe HighScore::Models::Score do
         redis = HighScore::Wrapper.redis
         stub( HighScore::Wrapper ).redis.returns(redis)
 
-        add_value = "#{score.player_id}-#{score.created_at}"
-
         # adding the keys
-        mock.proxy(redis).zadd(keys[:daily], score.score, add_value)
-        mock.proxy(redis).zadd(keys[:weekly], score.score, add_value)
-        mock.proxy(redis).zadd(keys[:monthly], score.score, add_value)
+        mock.proxy(redis).zadd(keys[:daily], score.score, HighScore::Models::Score.redis_value(score))
+        mock.proxy(redis).zadd(keys[:weekly], score.score, HighScore::Models::Score.redis_value(score))
+        mock.proxy(redis).zadd(keys[:monthly], score.score, HighScore::Models::Score.redis_value(score))
 
         # retrieving the resulting ranks
-        mock.proxy(redis).zrevrank(keys[:monthly], add_value)
-        mock.proxy(redis).zrevrank(keys[:weekly], add_value)
-        mock.proxy(redis).zrevrank(keys[:daily], add_value)
+        mock.proxy(redis).zrevrank(keys[:monthly], HighScore::Models::Score.redis_value(score))
+        mock.proxy(redis).zrevrank(keys[:weekly], HighScore::Models::Score.redis_value(score))
+        mock.proxy(redis).zrevrank(keys[:daily], HighScore::Models::Score.redis_value(score))
 
         score.update_leaderboards('game')
 
@@ -195,18 +210,6 @@ describe HighScore::Models::Score do
             :ref_time => score.created_at,
           })
         end.to raise_error(KeyError, "game_id is required to generate leaderboard keys")
-      end
-
-      it "fails if the player_id is not present" do
-        score = make_score(:player_id => nil)
-        expect do
-          HighScore::Models::Score.leaderboard_keys({
-            :player_id => score.player_id,
-            :game_id => score.game_id,
-            :type => 'game',
-            :ref_time => score.created_at,
-          })
-        end.to raise_error(KeyError, "player_id is required to generate leaderboard keys")
       end
     end
   end
